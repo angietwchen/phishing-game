@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>釣魚信件偵測演練 — 台灣大哥大資安</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#0a0e1a;--surface:#111827;--surface2:#1a2235;--border:#1e3a5f;--accent:#e8272a;--accent2:#ff6b35;--safe:#00d97e;--warn:#ffd60a;--text:#e8edf5;--text-muted:#6b7fa3;--glow:rgba(232,39,42,0.3)}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font-family:'Noto Sans TC',sans-serif;min-height:100vh;overflow-x:hidden}
+body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(rgba(30,58,95,.15) 1px,transparent 1px),linear-gradient(90deg,rgba(30,58,95,.15) 1px,transparent 1px);background-size:40px 40px;pointer-events:none;z-index:0}
+.screen{display:none;position:relative;z-index:1}.screen.active{display:flex}
+#intro{flex-direction:column;align-items:center;justify-content:center;min-height:100vh;padding:2rem;text-align:center}
+.twm-logo{height:60px;margin-bottom:1.5rem;filter:drop-shadow(0 2px 16px rgba(0,0,0,.6))}
+h1{font-size:clamp(2rem,5vw,3.5rem);font-weight:900;line-height:1.1;margin-bottom:1rem;background:linear-gradient(135deg,#fff 30%,var(--accent2));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.subtitle{color:var(--text-muted);font-size:1.05rem;max-width:480px;line-height:1.7;margin-bottom:2.5rem}
+.intro-cards{display:flex;gap:1rem;margin-bottom:2.5rem;flex-wrap:wrap;justify-content:center}
+.intro-card{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:1.2rem 1.5rem;width:155px;text-align:center}
+.intro-card .icon{font-size:1.8rem;margin-bottom:.5rem}
+.intro-card .label{font-size:.78rem;color:var(--text-muted);line-height:1.4}
+.btn-start{background:var(--accent);color:#fff;border:none;padding:1rem 3rem;font-size:1.1rem;font-weight:700;font-family:inherit;border-radius:4px;cursor:pointer;letter-spacing:.05em;transition:transform .1s,box-shadow .2s;box-shadow:0 0 24px var(--glow)}
+.btn-start:hover{transform:translateY(-2px);box-shadow:0 0 40px var(--glow)}
+#game{flex-direction:column;min-height:100vh;padding:1.5rem;gap:1rem}
+.game-header{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.75rem}
+.game-logo-img{height:34px;filter:drop-shadow(0 1px 6px rgba(0,0,0,.5))}
+.score-bar{display:flex;align-items:center;gap:.5rem;background:var(--surface);border:1px solid var(--border);border-radius:4px;padding:.4rem 1rem;font-family:'Share Tech Mono',monospace;font-size:.85rem}
+.score-label{color:var(--text-muted)}.score-value{color:var(--warn);font-weight:700}
+.instructions{background:linear-gradient(135deg,rgba(232,39,42,.08),rgba(255,107,53,.05));border:1px solid rgba(232,39,42,.25);border-left:3px solid var(--accent);border-radius:6px;padding:.8rem 1.2rem;font-size:.88rem;color:#c8d4e8;line-height:1.6}
+.instructions strong{color:var(--accent2)}
+.email-client{background:var(--surface);border:1px solid var(--border);border-radius:10px;overflow:hidden;flex:1;display:flex;flex-direction:column;box-shadow:0 8px 40px rgba(0,0,0,.4)}
+.email-titlebar{background:var(--surface2);border-bottom:1px solid var(--border);padding:.6rem 1rem;display:flex;align-items:center;gap:.5rem}
+.dot{width:10px;height:10px;border-radius:50%}.dot-r{background:#ff5f57}.dot-y{background:#febc2e}.dot-g{background:#28c840}
+.email-titlebar-text{margin-left:.5rem;font-size:.78rem;color:var(--text-muted);font-family:'Share Tech Mono',monospace}
+.email-header{padding:1.2rem 1.5rem;border-bottom:1px solid var(--border)}
+.email-field{display:grid;grid-template-columns:80px 1fr;gap:.3rem .8rem;align-items:start;margin-bottom:.4rem;font-size:.9rem}
+.email-field-label{color:var(--text-muted);font-size:.8rem;padding-top:2px;text-align:right}
+.email-subject-line{margin-top:.8rem;font-size:1.1rem;font-weight:700}
+.email-body{padding:1.5rem;font-size:.93rem;line-height:1.9;flex:1;overflow-y:auto}
+.clue{cursor:pointer;border-radius:3px;transition:background .2s,outline .2s;outline:2px solid transparent;position:relative}
+.clue:hover{background:rgba(255,214,10,.12);outline-color:rgba(255,214,10,.4)}
+.clue.found{background:rgba(255,107,53,.18);outline:2px solid var(--accent2);animation:pulse-found .4s ease}
+.clue.missed-reveal{background:rgba(232,39,42,.22);outline:2px solid var(--accent)}
+@keyframes pulse-found{0%{transform:scale(1)}50%{transform:scale(1.04)}100%{transform:scale(1)}}
+.clue-tooltip{display:none;position:absolute;bottom:calc(100% + 8px);left:50%;transform:translateX(-50%);background:#1e2d45;border:1px solid var(--accent2);color:var(--text);font-size:.78rem;padding:.5rem .8rem;border-radius:6px;white-space:normal;z-index:50;pointer-events:none;max-width:260px;text-align:center;line-height:1.4;box-shadow:0 4px 20px rgba(0,0,0,.5)}
+.clue.found .clue-tooltip,.clue.missed-reveal .clue-tooltip{display:block}
+.clue-tooltip::after{content:'';position:absolute;top:100%;left:50%;transform:translateX(-50%);border:5px solid transparent;border-top-color:var(--accent2)}
+.email-fake-btn{display:inline-block;background:linear-gradient(135deg,#1a6fc4,#1255a3);color:#fff!important;padding:.6rem 1.5rem;border-radius:4px;font-weight:700;cursor:pointer;margin:.5rem 0;font-size:.88rem;outline:2px solid transparent}
+.email-fake-btn.found{outline:2px solid var(--accent2)}
+.progress-row{display:flex;align-items:center;gap:1rem;padding:.6rem 0;flex-wrap:wrap}
+.progress-label{font-size:.82rem;color:var(--text-muted);white-space:nowrap}
+.progress-track{flex:1;min-width:120px;height:6px;background:var(--surface2);border-radius:3px;overflow:hidden}
+.progress-fill{height:100%;background:linear-gradient(90deg,var(--accent),var(--accent2));border-radius:3px;transition:width .4s ease;width:0%}
+.found-count{font-family:'Share Tech Mono',monospace;font-size:.85rem;color:var(--accent2)}
+.btn-verdict{background:transparent;border:1.5px solid var(--accent2);color:var(--accent2);padding:.55rem 1.4rem;font-size:.88rem;font-weight:700;font-family:inherit;border-radius:4px;cursor:pointer;transition:background .2s}
+.btn-verdict:hover{background:rgba(255,107,53,.12)}
+#result{flex-direction:column;align-items:center;justify-content:center;min-height:100vh;padding:2rem;text-align:center}
+.result-badge{font-size:4rem;margin-bottom:1rem;animation:drop-in .5s cubic-bezier(.34,1.56,.64,1) both}
+@keyframes drop-in{from{transform:scale(.3) rotate(-10deg);opacity:0}to{transform:scale(1) rotate(0);opacity:1}}
+.result-title{font-size:2rem;font-weight:900;margin-bottom:.5rem}
+.result-score-big{font-family:'Share Tech Mono',monospace;font-size:4rem;font-weight:700;color:var(--warn);line-height:1;margin:.5rem 0}
+.result-subtitle{color:var(--text-muted);margin-bottom:2rem;font-size:.95rem}
+.clue-summary{width:100%;max-width:620px;background:var(--surface);border:1px solid var(--border);border-radius:10px;overflow:hidden;margin-bottom:2rem;text-align:left}
+.clue-summary-header{background:var(--surface2);padding:.7rem 1.2rem;font-size:.8rem;font-weight:700;letter-spacing:.1em;color:var(--text-muted);text-transform:uppercase}
+.clue-row{display:flex;align-items:flex-start;gap:.8rem;padding:.9rem 1.2rem;border-bottom:1px solid rgba(30,58,95,.5);font-size:.88rem;line-height:1.5;animation:slide-in .3s ease both}
+@keyframes slide-in{from{opacity:0;transform:translateX(-12px)}to{opacity:1;transform:translateX(0)}}
+.clue-row:last-child{border-bottom:none}
+.clue-status{font-size:1.1rem;flex-shrink:0;margin-top:1px}
+.clue-info{flex:1}.clue-name{font-weight:700;margin-bottom:.25rem}
+.clue-name.hit{color:var(--safe)}.clue-name.miss{color:var(--accent)}
+.clue-desc{color:var(--text-muted);font-size:.82rem}
+.btn-restart{background:var(--accent);color:#fff;border:none;padding:.9rem 2.5rem;font-size:1rem;font-weight:700;font-family:inherit;border-radius:4px;cursor:pointer;box-shadow:0 0 24px var(--glow);transition:transform .1s}
+.btn-restart:hover{transform:translateY(-2px)}
+.branding{margin-top:1.5rem;display:flex;align-items:center;justify-content:center;gap:.5rem;font-size:.75rem;color:var(--text-muted)}
+.branding img{height:24px;opacity:.8;vertical-align:middle}
+.modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:100;align-items:center;justify-content:center;padding:1rem}
+.modal-overlay.open{display:flex}
+.modal{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:2rem;max-width:480px;width:100%;text-align:center;animation:modal-pop .3s cubic-bezier(.34,1.56,.64,1) both}
+@keyframes modal-pop{from{transform:scale(.8);opacity:0}to{transform:scale(1);opacity:1}}
+.modal-icon{font-size:3rem;margin-bottom:.8rem}
+.modal-title{font-size:1.4rem;font-weight:900;margin-bottom:.5rem}
+.modal-body{color:var(--text-muted);font-size:.9rem;line-height:1.7;margin-bottom:1.5rem}
+.modal-actions{display:flex;gap:.8rem;justify-content:center}
+.btn-modal-confirm{background:var(--safe);color:#000;border:none;padding:.6rem 1.5rem;font-size:.9rem;font-weight:700;font-family:inherit;border-radius:4px;cursor:pointer}
+.btn-modal-cancel{background:transparent;color:var(--text-muted);border:1px solid var(--border);padding:.6rem 1.5rem;font-size:.9rem;font-family:inherit;border-radius:4px;cursor:pointer}
+</style>
+</head>
+<body>
+
+<div id="intro" class="screen active">
+  <img src="logo.png" alt="台灣大哥大企業服務" class="twm-logo">
+  <h1>你能識破<br>釣魚信件嗎？</h1>
+  <p class="subtitle">社交工程攻擊每天都在發生。<br>找出這封可疑信件中所有的攻擊線索，測試你的資安直覺！</p>
+  <div class="intro-cards">
+    <div class="intro-card"><div class="icon">🔍</div><div class="label">點選信件中可疑之處</div></div>
+    <div class="intro-card"><div class="icon">💡</div><div class="label">即時顯示線索說明</div></div>
+    <div class="intro-card"><div class="icon">📊</div><div class="label">最終報告與評分</div></div>
+  </div>
+  <button class="btn-start" id="btn-start-game">開始挑戰 →</button>
+  <div class="branding"><img src="logo.png" alt="台灣大哥大"> 資安服務</div>
+</div>
+
+<div id="game" class="screen">
+  <div class="game-header">
+    <img src="logo.png" alt="台灣大哥大企業服務" class="game-logo-img">
+    <div class="score-bar">
+      <span class="score-label">已找到</span>
+      <span class="score-value" id="live-score">0 / 6</span>
+    </div>
+  </div>
+  <div class="instructions">這封信件<strong>疑似釣魚郵件</strong>，請仔細閱讀，<strong>點選</strong>你認為可疑的部分。找出所有線索後按下「提交判斷」。</div>
+  <div class="email-client">
+    <div class="email-titlebar">
+      <div class="dot dot-r"></div><div class="dot dot-y"></div><div class="dot dot-g"></div>
+      <span class="email-titlebar-text">收件匣 — 台灣大哥大企業郵件系統</span>
+    </div>
+    <div class="email-header">
+      <div class="email-field">
+        <span class="email-field-label">寄件者</span>
+        <span class="email-field-value">台灣大哥大資訊安全部門 &lt;<span class="clue" data-id="0" data-tip="正確應為 @taiwanmobile.com，此網域用大寫 I 替代小寫 l，是仿冒網域！">security@taiwanmobiIe.com</span>&gt;</span>
+      </div>
+      <div class="email-field">
+        <span class="email-field-label">收件者</span>
+        <span class="email-field-value">全體員工 &lt;all-staff@taiwanmobile.com&gt;</span>
+      </div>
+      <div class="email-field">
+        <span class="email-field-label">日期</span>
+        <span class="email-field-value"><span class="clue" data-id="1" data-tip="週六深夜 23:47 發出官方安全公告，不符合企業正常作業時間。">2025年4月19日（六）23:47</span></span>
+      </div>
+      <div class="email-field"><span class="email-field-label">主旨</span><span class="email-field-value"></span></div>
+      <div class="email-subject-line"><span class="clue" data-id="2" data-tip="使用「緊急」、「立即」等詞製造恐慌，讓你跳過理性判斷，是社交工程最常見的手法。">【緊急通知】您的帳號將於24小時內停用，請立即驗證</span></div>
+    </div>
+    <div class="email-body">
+      <p>親愛的同仁，您好：</p><br>
+      <p>我們的系統偵測到您的企業帳號出現<span class="clue" data-id="3" data-tip="威脅描述含糊，真實資安通知會附上具體登入紀錄（IP、地點、時間）。">異常登入行為，帳號安全可能已遭受威脅</span>。</p><br>
+      <p>為確保您的資料安全，請您<strong>立即</strong>完成以下步驟：</p><br>
+      <ol style="margin-left:1.5rem;line-height:2.2;">
+        <li>點擊下方連結進行身份驗證</li>
+        <li>輸入您的員工編號與密碼</li>
+        <li>完成雙重驗證後即可恢復帳號</li>
+      </ol><br>
+      <p style="text-align:center;">
+        <span class="clue email-fake-btn" data-id="4" data-tip="按鈕外觀正常，但實際連結指向釣魚網站！企業系統永遠不應要求你在第三方頁面輸入密碼。">✅ 立即驗證我的帳號</span>
+      </p><br>
+      <p style="font-size:.85em;color:#8a9ab5;">若連結無法點擊，請複製以下網址至瀏覽器：<br>
+        <span class="clue" data-id="5" data-tip="網址以數字「0」替換字母「o」（tw-m0bile），且使用第三方 .net 網域，是典型的 Typosquatting 攻擊！" style="color:#4a9eff;word-break:break-all;">https://secure-verify.tw-m0bile-portal.net/auth?token=8f3kP</span>
+      </p><br>
+      <p>若您在 <strong>24小時內</strong>未完成驗證，帳號將自動停用，請勿忽視本通知。</p><br>
+      <p>敬上<br>台灣大哥大 資訊安全部門<br>Tel: 0800-XXX-XXX</p>
+    </div>
+  </div>
+  <div class="progress-row">
+    <span class="progress-label">偵測進度</span>
+    <div class="progress-track"><div class="progress-fill" id="progress-fill"></div></div>
+    <span class="found-count" id="found-count">0 / 6 線索</span>
+    <button class="btn-verdict" id="btn-open-verdict">提交判斷</button>
+  </div>
+</div>
+
+<div id="result" class="screen">
+  <div class="result-badge" id="result-badge">🏆</div>
+  <div class="result-title" id="result-title">偵測完成！</div>
+  <div class="result-score-big" id="result-score">6/6</div>
+  <div class="result-subtitle" id="result-subtitle"></div>
+  <div class="clue-summary">
+    <div class="clue-summary-header">線索解析報告</div>
+    <div id="clue-rows"></div>
+  </div>
+  <button class="btn-restart" id="btn-restart-game">再玩一次</button>
+  <div class="branding"><img src="logo.png" alt="台灣大哥大"> 資安服務</div>
+</div>
+
+<div class="modal-overlay" id="verdict-modal">
+  <div class="modal">
+    <div class="modal-icon">🤔</div>
+    <div class="modal-title">確認提交判斷？</div>
+    <div class="modal-body">你已找到 <strong id="modal-found">0</strong> / 6 個可疑線索。<br>提交後將顯示所有線索與詳細解說。</div>
+    <div class="modal-actions">
+      <button class="btn-modal-cancel" id="btn-close-verdict">繼續找找</button>
+      <button class="btn-modal-confirm" id="btn-submit-game">確認提交</button>
+    </div>
+  </div>
+</div>
+
+<script src="game.js"></script>
+</body>
+</html>
